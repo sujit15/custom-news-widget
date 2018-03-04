@@ -1,74 +1,134 @@
 <?php
+
 /**
  * Class NewsWidget
  */
 class NewsWidget extends WP_Widget {
 
+	/**
+	 * Sets up a new News Custom Posts widget instance.
+	 *
+	 * @since 1.0
+	 */
 	public function __construct() {
-		/* Register Widget */
 		parent:: __construct(
 			'news_widget', //ID
 			esc_html__( 'News Widget', 'text_domain' ), //Name
 			array( 'description' => esc_html__( 'This is news widget for news custom post.', 'text_domain' ) ) //Description
 		);
 	}
-	/* Fontend Widget Form */
-	public function widget( $instance, $args ) {
-		echo $args['before_widget'];
-		if ( ! empty( $instance['title'] ) ) {
-			echo $args['before_title'] . apply_filters( 'Widget_title', $instance['title'] ) . $args['after_title'];
+
+	/**
+	 * Outputs the content for the current News Custom Posts widget instance.
+	 *
+	 * @since 2.8.0
+	 *
+	 * @param array $args     Display arguments including 'before_title', 'after_title',
+	 *                        'before_widget', and 'after_widget'.
+	 * @param array $instance Settings for the current News Posts widget instance.
+	 */
+	public function widget( $args, $instance ) {
+		if ( ! isset( $args['widget_id'] ) ) {
+			$args['widget_id'] = $this->id;
 		}
-		echo '<h2 class="widget-title">'.esc_html__( 'News', 'text_domain' ). '</h2>';
 
-		$args = array(
-			'post_type'             => 'news',
-			'post_status'           => 'publish',
-			'posts_per_page'        => 5
-		);
-		$query = new WP_Query($args);
+		$title = ( ! empty( $instance['title'] ) ) ? $instance['title'] : __( 'News' );
+
+		/** This filter is documented in wp-includes/widgets/class-wp-widget-pages.php */
+		$title = apply_filters( 'widget_title', $title, $instance, $this->id_base );
+
+		$number = ( ! empty( $instance['number'] ) ) ? absint( $instance['number'] ) : 5;
+		if ( ! $number ) {
+			$number = 5;
+		}
+		$show_date = isset( $instance['show_date'] ) ? $instance['show_date'] : false;
+
+		/**
+		 * Filters the arguments for the News Custom Posts widget.
+		 *
+		 * @since 3.4.0
+		 * @since 4.9.0 Added the `$instance` parameter.
+		 *
+		 * @see WP_Query::get_posts()
+		 *
+		 * @param array $args     An array of arguments used to retrieve the News posts.
+		 * @param array $instance Array of settings for the current widget.
+		 */
+		$r = new WP_Query( apply_filters( 'widget_posts_args', array(
+			'post_type'                 => 'news',
+			'posts_per_page'            => $number,
+			'no_found_rows'             => true,
+			'post_status'               => 'publish',
+			'ignore_sticky_posts'       => true,
+		), $instance ) );
+
+		if ( ! $r->have_posts() ) {
+			return;
+		}
 		?>
-		<?php if ( $query->have_posts() ) : ?>
-
-			<!-- pagination here -->
-
-			<!-- the loop -->
-			<?php while ( $query->have_posts() ) : $query->the_post(); ?>
-				<p class="title"><a class="url" href="<?php the_permalink(); ?>"><?php the_title(); ?></a></p>
-			<?php endwhile; ?>
-			<!-- end of the loop -->
-
-			<!-- pagination here -->
-
-			<?php wp_reset_postdata(); ?>
-
-		<?php else : ?>
-			<p><?php _e( 'Sorry, no posts matched your criteria.' ); ?></p>
-		<?php endif; ?>
-
+		<?php echo $args['before_widget']; ?>
 		<?php
-		echo $args[ 'after_widget' ];
+		if ( $title ) {
+			echo $args['before_title'] . $title . $args['after_title'];
+		}
+		?>
+        <ul style="list-style-type: none;">
+			<?php foreach ( $r->posts as $recent_post ) : ?>
+				<?php
+				$post_title = get_the_title( $recent_post->ID );
+				$title      = ( ! empty( $post_title ) ) ? $post_title : __( '(no title)' );
+				?>
+                <li>
+                    <a href="<?php the_permalink( $recent_post->ID ); ?>"><?php echo $title ; ?></a>
+					<?php if ( $show_date ) : ?>
+                        <span class="post-date"><?php echo get_the_date( '', $recent_post->ID ); ?></span>
+					<?php endif; ?>
+                </li>
+			<?php endforeach; ?>
+        </ul>
+		<?php
+		echo $args['after_widget'];
 	}
 
-	/* Backend Widget Form */
-	public function form( $instance ) {
-		$title = ! empty( $instance['title'] ) ? $instance['title'] : esc_html__( 'New Title', 'text_domain' );
-		?>
-		<p>
-			<br for="<?php echo esc_attr( $this->get_field_id( 'title' ) ); ?>">
-			<?php echo esc_html__('Title:', 'text_domain'); ?>
-			</label></br>
-			<input type="text" class="widefat" id="<?php echo esc_attr($this->get_field_id('title')) ?>"
-			       name="<?php echo esc_attr($this->get_field_name('title')); ?>"
-			       value="<?php echo esc_attr($title); ?>">
-		</p>
-		<?php
-	}
-
-	/* Sanatize the widget as they saved */
+	/**
+	 * Handles updating the settings for the current News Custom Posts widget instance.
+	 *
+	 * @since 2.8.0
+	 *
+	 * @param array $new_instance New settings for this instance as input by the user via
+	 *                            WP_Widget::form().
+	 * @param array $old_instance Old settings for this instance.
+	 * @return array Updated settings to save.
+	 */
 	public function update( $new_instance, $old_instance ) {
-		$instance = array();
-		$instance['title'] = ( ! empty( $new_instance['title'] ) ) ? strip_tags( $new_instance['title'] ) : '';
+		$instance = $old_instance;
+		$instance['title'] = sanitize_text_field( $new_instance['title'] );
+		$instance['number'] = (int) $new_instance['number'];
+		$instance['show_date'] = isset( $new_instance['show_date'] ) ? (bool) $new_instance['show_date'] : false;
 		return $instance;
+	}
+
+	/**
+	 * Outputs the settings form for the News Custom Posts widget.
+	 *
+	 * @since 2.8.0
+	 *
+	 * @param array $instance Current settings.
+	 */
+	public function form( $instance ) {
+		$title     = isset( $instance['title'] ) ? esc_attr( $instance['title'] ) : '';
+		$number    = isset( $instance['number'] ) ? absint( $instance['number'] ) : 5;
+		$show_date = isset( $instance['show_date'] ) ? (bool) $instance['show_date'] : false;
+		?>
+        <p><label for="<?php echo $this->get_field_id( 'title' ); ?>"><?php _e( 'Title:' ); ?></label>
+            <input class="widefat" id="<?php echo $this->get_field_id( 'title' ); ?>" name="<?php echo $this->get_field_name( 'title' ); ?>" type="text" value="<?php echo $title; ?>" /></p>
+
+        <p><label for="<?php echo $this->get_field_id( 'number' ); ?>"><?php _e( 'Number of posts to show:' ); ?></label>
+            <input class="tiny-text" id="<?php echo $this->get_field_id( 'number' ); ?>" name="<?php echo $this->get_field_name( 'number' ); ?>" type="number" step="1" min="1" value="<?php echo $number; ?>" size="3" /></p>
+
+        <p><input class="checkbox" type="checkbox"<?php checked( $show_date ); ?> id="<?php echo $this->get_field_id( 'show_date' ); ?>" name="<?php echo $this->get_field_name( 'show_date' ); ?>" />
+            <label for="<?php echo $this->get_field_id( 'show_date' ); ?>"><?php _e( 'Display post date?' ); ?></label></p>
+		<?php
 	}
 }
 
