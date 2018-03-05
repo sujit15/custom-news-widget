@@ -1,12 +1,10 @@
 <?php
 /**
  * Plugin Name: Custom News Widget
- * Plugin URI: #
  * Description: News Widget Plugin for WordPress
  * Author: Sujit
- * Author URI: #
  * version: 1.0
- * license: GPL3
+ * license: GPLv3
  */
 
 if(!defined('ABSPATH')){
